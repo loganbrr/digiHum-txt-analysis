@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 # / data ingestion # 
 class FOMCDataIngester:
-    def __init__(self, base_url: str = "https://www.federalreserve.gov/monetarypolicy/fomcminutes"):
+    def __init__(self, base_url: str = "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"):
         self.base_url = base_url
         self.raw_data_dir = Path("data/raw")
         self.raw_data_dir.mkdir(parents=True, exist_ok=True)
@@ -29,13 +29,35 @@ class FOMCDataIngester:
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Find all links to meeting minutes
+            # Find the most recent PDF link based on release date
             links = []
+            current_date = datetime.now()
+            min_date_diff = float('inf')
+            most_recent_link = None
+
             for link in soup.find_all('a'):
                 href = link.get('href', '')
-                if 'fomcminutes' in href and ('htm' in href or 'pdf' in href):
-                    links.append(href)
+                if 'fomcminutes' in href and 'pdf' in href:
+                    # Get the parent element containing the release date
+                    parent = link.parent
+                    if parent:
+                        # Look for text containing the release date using string instead of text
+                        date_text = parent.find(string=lambda s: s and 'Released' in s)
+                        if date_text:
+                            try:
+                                # Extract date from text like "Released March 17, 2023"
+                                date_str = date_text.strip().split('Released ')[1]
+                                link_date = datetime.strptime(date_str, '%B %d, %Y')
+                                date_diff = abs((current_date - link_date).days)
+                                
+                                if date_diff < min_date_diff:
+                                    min_date_diff = date_diff
+                                    most_recent_link = href
+                            except (ValueError, IndexError):
+                                continue
             
+            if most_recent_link:
+                links.append(most_recent_link)
             return links
         except Exception as e:
             logger.error(f"Error fetching meeting links: {str(e)}")
@@ -101,4 +123,4 @@ class FOMCDataIngester:
 
 if __name__ == "__main__":
     ingester = FOMCDataIngester()
-    ingester.run() 
+    ingester.run()

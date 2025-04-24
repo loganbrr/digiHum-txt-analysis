@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 import unicodedata
+import pdfplumber
 
 # / logging #
 logging.basicConfig(
@@ -44,8 +45,9 @@ class TextCleaner:
         # / use cleanfile method and save file into txt #
         try:
             # / read the input file #
-            with open(input_path, 'r', encoding='utf-8') as f:
-                text = f.read()
+            with pdfplumber.open(input_path) as pdf:
+                text = '\n'.join(page.extract_text() for page in pdf.pages)
+            logger.info(f"Successfully read {input_path}")
             
             # / clean the text #
             cleaned_text = self.clean_text(text)
@@ -56,6 +58,7 @@ class TextCleaner:
             # / save cleaned text #
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(cleaned_text)
+                logger.info(f"Successfully wrote {output_path}")
             
             logger.info(f"Successfully cleaned and saved {output_path}")
             return str(output_path)
@@ -64,8 +67,8 @@ class TextCleaner:
             return None
 
     def process_directory(self, input_dir: Path) -> None:
-        # / process all text files in the input directory #
-        for file_path in input_dir.glob("*_processed.txt"):
+        # / process all PDF files in the input directory #
+        for file_path in input_dir.glob("*.pdf"):
             self.process_file(file_path)
 
 if __name__ == "__main__":
@@ -74,4 +77,4 @@ if __name__ == "__main__":
     
     # / process the input directory #
     input_dir = Path("data/raw")
-    cleaner.process_directory(input_dir) 
+    cleaner.process_directory(input_dir)

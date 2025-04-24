@@ -23,46 +23,67 @@ class SimilarityAnalyzer:
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
     def load_vectors(self) -> List[Tuple[str, np.ndarray]]:
-        # / load vector files #
         vectors = []
         for vector_path in sorted(self.vectors_dir.glob("*_vector.npy")):
             try:
-                # / load vector #
                 vector = np.load(vector_path)
+                if vector.ndim == 1:
+                    vector = vector.reshape(1, -1)  # Reshape to 2D array
                 
-                # / load metadata #
                 with open(vector_path.with_suffix('.json'), 'r') as f:
                     metadata = json.load(f)
                 
                 vectors.append((str(vector_path), vector))
+                logger.info(f"Successfully loaded vector from {vector_path}")
             except Exception as e:
                 logger.error(f"Error loading vector {vector_path}: {str(e)}")
+                continue
         
+        if not vectors:
+            logger.warning("No vectors were successfully loaded")
         return vectors
 
     def compute_similarities(self, vectors: List[Tuple[str, np.ndarray]]) -> pd.DataFrame:
-        # / compute cosine similarity between consecutive vectors #
         similarities = []
         dates = []
+        
+        # Find minimum dimension across all vectors
+        min_dim = min(vector[1].shape[1] for vector in vectors)
+        logger.info(f"Using minimum dimension of {min_dim} for all vectors")
         
         for i in range(len(vectors) - 1):
             try:
                 current_path, current_vector = vectors[i]
                 next_path, next_vector = vectors[i + 1]
                 
-                # / compute cosine similarity #
+                # Ensure vectors are 2D arrays
+                if current_vector.ndim == 1:
+                    current_vector = current_vector.reshape(1, -1)
+                if next_vector.ndim == 1:
+                    next_vector = next_vector.reshape(1, -1)
+                
+                # Truncate vectors to minimum dimension
+                current_vector = current_vector[:, :min_dim]
+                next_vector = next_vector[:, :min_dim]
+                
+                # Compute cosine similarity
                 similarity = cosine_similarity(current_vector, next_vector)[0][0]
                 
-                # / extract dates from filenames #
+                # Extract dates from filenames
                 current_date = Path(current_path).stem.split('_')[2]
                 next_date = Path(next_path).stem.split('_')[2]
                 
                 similarities.append(similarity)
                 dates.append((current_date, next_date))
+                logger.debug(f"Computed similarity between {current_date} and {next_date}: {similarity}")
             except Exception as e:
-                logger.error(f"Error computing similarity: {str(e)}")
+                logger.error(f"Error computing similarity between {current_path} and {next_path}: {str(e)}")
+                continue
         
-        # / create dataframe #
+        if not similarities:
+            logger.error("No similarities were computed")
+            return pd.DataFrame()
+            
         df = pd.DataFrame({
             'current_date': [d[0] for d in dates],
             'next_date': [d[1] for d in dates],
@@ -72,9 +93,12 @@ class SimilarityAnalyzer:
         return df
 
     def visualize_similarities(self, df: pd.DataFrame) -> None:
-        # / create visualizations of the similarity scores #
+        if df.empty:
+            logger.error("Cannot create visualizations: DataFrame is empty")
+            return
+            
         try:
-            # / create line plot #
+            # Create line plot
             plt.figure(figsize=(12, 6))
             sns.lineplot(data=df, x='current_date', y='similarity')
             plt.title('FOMC Minutes Similarity Over Time')
@@ -83,29 +107,41 @@ class SimilarityAnalyzer:
             plt.xticks(rotation=45)
             plt.tight_layout()
             plt.savefig(self.results_dir / 'similarity_trend.png')
+            plt.close()
             
-            # / create heatmap #
+            # Create heatmap
             plt.figure(figsize=(10, 8))
-            similarity_matrix = np.zeros((len(df), len(df)))
-            for i in range(len(df)):
-                similarity_matrix[i, i] = 1.0
-                if i < len(df) - 1:
-                    similarity_matrix[i, i+1] = df.iloc[i]['similarity']
-                    similarity_matrix[i+1, i] = df.iloc[i]['similarity']
+            n = len(df)
+            similarity_matrix = np.zeros((n, n))
+            
+            # Fill diagonal with 1.0
+            np.fill_diagonal(similarity_matrix, 1.0)
+            
+            # Fill off-diagonal elements with similarities
+            for i in range(n-1):
+                similarity_matrix[i, i+1] = df.iloc[i]['similarity']
+                similarity_matrix[i+1, i] = df.iloc[i]['similarity']
             
             sns.heatmap(similarity_matrix, 
                        xticklabels=df['current_date'],
                        yticklabels=df['current_date'],
-                       cmap='YlOrRd')
+                       cmap='YlOrRd',
+                       vmin=0,
+                       vmax=1)
             plt.title('FOMC Minutes Similarity Matrix')
             plt.tight_layout()
             plt.savefig(self.results_dir / 'similarity_matrix.png')
+            plt.close()
             
+            logger.info("Successfully created visualizations")
         except Exception as e:
             logger.error(f"Error creating visualizations: {str(e)}")
 
     def save_results(self, df: pd.DataFrame) -> None:
-        # / save similarity results to csv #
+        if df.empty:
+            logger.error("Cannot save results: DataFrame is empty")
+            return
+            
         try:
             output_path = self.results_dir / 'similarity_scores.csv'
             df.to_csv(output_path, index=False)
@@ -114,15 +150,18 @@ class SimilarityAnalyzer:
             logger.error(f"Error saving results: {str(e)}")
 
     def run(self):
-        # / main loop #
         vectors = self.load_vectors()
-        if vectors:
-            df = self.compute_similarities(vectors)
+        if not vectors:
+            logger.error("No vectors found to analyze")
+            return
+            
+        df = self.compute_similarities(vectors)
+        if not df.empty:
             self.visualize_similarities(df)
             self.save_results(df)
         else:
-            logger.error("No vectors found to analyze")
+            logger.error("No similarities were computed")
 
 if __name__ == "__main__":
     analyzer = SimilarityAnalyzer()
-    analyzer.run() 
+    analyzer.run()
