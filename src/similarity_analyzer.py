@@ -16,20 +16,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class SimilarityAnalyzer:
+    # / initialize the analyzer #
     def __init__(self):
         self.vectors_dir = Path("data/vectors")
         self.results_dir = Path("data/results")
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
     def load_vectors(self) -> List[Tuple[str, np.ndarray]]:
-        """Load all vector files and their metadata."""
+        # / load vector files #
         vectors = []
         for vector_path in sorted(self.vectors_dir.glob("*_vector.npy")):
             try:
-                # Load vector
+                # / load vector #
                 vector = np.load(vector_path)
                 
-                # Load metadata
+                # / load metadata #
                 with open(vector_path.with_suffix('.json'), 'r') as f:
                     metadata = json.load(f)
                 
@@ -40,7 +41,7 @@ class SimilarityAnalyzer:
         return vectors
 
     def compute_similarities(self, vectors: List[Tuple[str, np.ndarray]]) -> pd.DataFrame:
-        """Compute cosine similarity between consecutive vectors."""
+        # / compute cosine similarity between consecutive vectors #
         similarities = []
         dates = []
         
@@ -49,10 +50,10 @@ class SimilarityAnalyzer:
                 current_path, current_vector = vectors[i]
                 next_path, next_vector = vectors[i + 1]
                 
-                # Compute cosine similarity
+                # / compute cosine similarity #
                 similarity = cosine_similarity(current_vector, next_vector)[0][0]
                 
-                # Extract dates from filenames
+                # / extract dates from filenames #
                 current_date = Path(current_path).stem.split('_')[2]
                 next_date = Path(next_path).stem.split('_')[2]
                 
@@ -61,7 +62,7 @@ class SimilarityAnalyzer:
             except Exception as e:
                 logger.error(f"Error computing similarity: {str(e)}")
         
-        # Create DataFrame
+        # / create dataframe #
         df = pd.DataFrame({
             'current_date': [d[0] for d in dates],
             'next_date': [d[1] for d in dates],
@@ -71,9 +72,9 @@ class SimilarityAnalyzer:
         return df
 
     def visualize_similarities(self, df: pd.DataFrame) -> None:
-        """Create visualizations of the similarity scores."""
+        # / create visualizations of the similarity scores #
         try:
-            # Create line plot
+            # / create line plot #
             plt.figure(figsize=(12, 6))
             sns.lineplot(data=df, x='current_date', y='similarity')
             plt.title('FOMC Minutes Similarity Over Time')
@@ -83,7 +84,7 @@ class SimilarityAnalyzer:
             plt.tight_layout()
             plt.savefig(self.results_dir / 'similarity_trend.png')
             
-            # Create heatmap
+            # / create heatmap #
             plt.figure(figsize=(10, 8))
             similarity_matrix = np.zeros((len(df), len(df)))
             for i in range(len(df)):
@@ -104,7 +105,7 @@ class SimilarityAnalyzer:
             logger.error(f"Error creating visualizations: {str(e)}")
 
     def save_results(self, df: pd.DataFrame) -> None:
-        """Save similarity results to CSV."""
+        # / save similarity results to csv #
         try:
             output_path = self.results_dir / 'similarity_scores.csv'
             df.to_csv(output_path, index=False)
@@ -113,7 +114,7 @@ class SimilarityAnalyzer:
             logger.error(f"Error saving results: {str(e)}")
 
     def run(self):
-        """Main execution method."""
+        # / main loop #
         vectors = self.load_vectors()
         if vectors:
             df = self.compute_similarities(vectors)
