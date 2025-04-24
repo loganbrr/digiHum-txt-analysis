@@ -1,0 +1,48 @@
+Last login: Thu Mar 20 12:24:03 on ttys004
+[oh-my-zsh] Would you like to update? [Y/n] n
+[oh-my-zsh] You can update manually by running `omz update`
+logan@Logan-4 ~ % cd desktop 
+logan@Logan-4 desktop % cd fed-data
+logan@Logan-4 fed-data % cd assets              
+logan@Logan-4 assets % touch test.txt     
+logan@Logan-4 assets % nano test.txt             
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  UW PICO 5.09                     File: test.txt                     Modified  
+
+hello
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+^G Get Help  ^O WriteOut  ^R Read File ^Y Prev Pg   ^K Cut Text  ^C Cur Pos   
+^X Exit      ^J Justify   ^W Where is  ^V Next Pg   ^U UnCut Text^T To Spell  
